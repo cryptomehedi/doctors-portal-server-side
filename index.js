@@ -42,7 +42,7 @@ async function run(){
 
         app.get('/services', async(req, res)=>{
             const query = {}
-            const cursor = servicesCollection.find(query)
+            const cursor = servicesCollection.find(query).project({name: 1})
             const services = await cursor.toArray()
             res.send(services)
         })
@@ -85,7 +85,7 @@ async function run(){
             };
             const result = await usersCollection.updateOne(filter, updateDoc, options)
 
-            const token = jwt.sign({email},process.env.ACCESS_TOKEN_SECRET,{ expiresIn: '6h' })
+            const token = jwt.sign({email},process.env.ACCESS_TOKEN_SECRET,{ expiresIn: '1m' })
 
             res.send({result, token})
         })
