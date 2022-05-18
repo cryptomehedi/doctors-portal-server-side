@@ -85,7 +85,7 @@ async function run(){
             };
             const result = await usersCollection.updateOne(filter, updateDoc, options)
 
-            const token = jwt.sign({email},process.env.ACCESS_TOKEN_SECRET,{ expiresIn: '1m' })
+            const token = jwt.sign({email},process.env.ACCESS_TOKEN_SECRET,{ expiresIn: '1d' })
 
             res.send({result, token})
         })
