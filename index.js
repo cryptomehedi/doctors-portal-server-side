@@ -1,8 +1,12 @@
 const express = require('express')
 const cors = require('cors');
-const { MongoClient, ServerApiVersion } = require('mongodb');
+const nodemailer = require('nodemailer');
+const sgTransport = require('nodemailer-sendgrid-transport');
+const { MongoClient, ServerApiVersion , ObjectId } = require('mongodb');
 require('dotenv').config()
 const jwt = require('jsonwebtoken');
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+
 const app = express()
 const port = process.env.PORT || 4000
 
@@ -33,12 +37,106 @@ function verifyToken(req, res, next) {
     })
 }
 
+const options = {
+    auth: {
+        api_key: process.env.EMAIL_SEND_KEY
+    }
+}
+const  emailClient = nodemailer.createTransport(sgTransport(options));
+
+function sendMail(booking) {
+    const {patientEmail, patientName, date, slot, treatment} = booking
+
+    const email = {
+        from: process.env.EMAIL_SENDER ,
+        to: patientEmail,
+        subject: `Your Appointment For ${treatment} Is On ${date} At ${slot} Is Confirmed`,
+        text: `Your Appointment For ${treatment} Is On ${date} At ${slot} Is Confirmed`,
+        html: `
+            <div>
+                <p>Hello ${patientName},</p>
+                <h3>Your Appointment For ${treatment} Is Confirmed</h3>
+                <p>Looking Forward To See You On ${date} At ${slot}</p>
+                <h3>ICT Tower (14th Floor) Plot: E-14/X, Dhaka 1207</h3>
+                <p>Bangladesh</p>
+            </div>
+        `
+    };
+
+    emailClient.sendMail(email, function(err, info){
+        if (err ){
+            console.log(err);
+        }
+        else {
+            console.log('Message sent: ', info);
+        }
+    });
+}
+
+
+// function sendPaymentMail(booking) {
+//     const {patientEmail, patientName, date, slot, treatment} = booking
+
+//     const email = {
+//         from: process.env.EMAIL_SENDER ,
+//         to: patientEmail,
+//         subject: `We Have Received Your Payment For ${treatment}`,
+//         text: `Your Payment For ${treatment} Is On ${date} At ${slot} Is Confirmed`,
+//         html: `
+//             <div>
+//                 <p>Hello ${patientName},</p>
+//                 <h3>Your Appointment For ${treatment} Is Confirmed</h3>
+//                 <h3>Your Appointment For ${treatment} Is Confirmed</h3>
+//                 <p>Looking Forward To See You On ${date} At ${slot}</p>
+//                 <h3>ICT Tower (14th Floor) Plot: E-14/X, Dhaka 1207</h3>
+//                 <p>Bangladesh</p>
+//             </div>
+//         `
+//     };
+
+//     emailClient.sendPaymentMail(email, function(err, info){
+//         if (err ){
+//             console.log(err);
+//         }
+//         else {
+//             console.log('Message sent: ', info);
+//         }
+//     });
+// }
+
+
 async function run(){
     try {
         await client.connect()
         const servicesCollection = client.db('doctorsPortal').collection('services')
         const bookingCollection = client.db('doctorsPortal').collection('bookings')
         const usersCollection = client.db('doctorsPortal').collection('users')
+        const doctorCollection = client.db('doctorsPortal').collection('doctors')
+        const paymentCollection = client.db('doctorsPortal').collection('payments')
+
+        const verifyAdmin = async(req, res,next)=>{
+            const requester = req.decoded.email
+            const requesterAccount = await usersCollection.findOne({email: requester})
+            if(requesterAccount.role === 'admin'){
+                next()
+            }else{
+                res.status(403).send({ message: 'Invalid Access' })
+            }
+        }
+
+        app.post('/create-payment-intent',async (req, res)=>{
+            const service = req.body
+            console.log(service);
+            const price = service.price
+            const amount = price * 100
+            console.log(amount);
+            const paymentIntent = await stripe.paymentIntents.create({
+                amount : amount,
+                currency : 'USD',
+                payment_method_types: ['card']
+            })
+            res.send({ clientSecret: paymentIntent.client_secret, })
+        })
 
         app.get('/services', async(req, res)=>{
             const query = {}
@@ -60,18 +158,16 @@ async function run(){
         })
         
 
-        app.put('/user/admin/:email',verifyToken, async(req, res)=>{
+        app.put('/user/admin/:email',verifyToken,verifyAdmin, async(req, res)=>{
             const email = req.params.email
-            const requester = req.decoded.email
-            const requesterAccount = await usersCollection.findOne({email: requester})
-            if(requesterAccount.role === 'admin'){
+            
                 const filter = {email}
                 const updateDoc = {
                     $set: {role: 'admin'},
                 };
                 const result = await usersCollection.updateOne(filter, updateDoc)
                 return res.send({result})
-            }
+            // }
             // return res.status(403).send({ message: 'Invalid Access' })
         })
 
@@ -85,7 +181,7 @@ async function run(){
             };
             const result = await usersCollection.updateOne(filter, updateDoc, options)
 
-            const token = jwt.sign({email},process.env.ACCESS_TOKEN_SECRET,{ expiresIn: '1d' })
+            const token = jwt.sign({email},process.env.ACCESS_TOKEN_SECRET,{ expiresIn: '7d' })
 
             res.send({result, token})
         })
@@ -116,21 +212,72 @@ async function run(){
             else{
                 return res.status(403).send({ message: 'Invalid Access' })
             }
-
         })
 
+        app.get('/booking/:id',verifyToken,async (req, res) => {
+            const id = req.params.id
+            const query = {_id: ObjectId(id)}
+            const booking = await bookingCollection.findOne(query)
+            res.send(booking)
+        })
 
         app.post('/booking', async (req, res)=>{
             const booking = req.body
             const query = {treatment: booking.treatment, date: booking.date, patientEmail: booking.patientEmail}
             const existingBooking =await bookingCollection.findOne(query)
-            console.log(existingBooking)
             if(existingBooking){
                 return res.send({success: false, booking: existingBooking})
             }
             const result = await bookingCollection.insertOne(booking)
+            sendMail(booking)
             res.send({success: true, result })
         })
+
+        app.put('/booking/:id',verifyToken, async(req, res) => {
+            const id = req.params.id
+            const payment = req.body
+            const filter = {_id: ObjectId(id)} 
+            const options = { upsert: true };
+            const updateDoc = {
+                $set: {
+                    paid : true,
+                    transactionId: payment.transactionId
+                },
+            };
+            const result = await paymentCollection.insertOne(payment)
+            const updatedBooking = await bookingCollection.updateOne(filter,updateDoc, options )
+            // res.send({updatedBooking, result})
+            res.send(updateDoc)
+        })
+
+
+        app.get('/doctor', verifyToken, verifyAdmin, async(req, res)=>{
+            const doctors = await doctorCollection.find().toArray()
+            res.send(doctors)
+        })
+
+
+        app.post('/doctor', verifyToken, verifyAdmin, async(req, res) => {
+            const doctor = req.body
+            const result = await doctorCollection.insertOne(doctor)
+            res.send(result)
+        })
+
+        app.delete('/doctor/:email', verifyToken, verifyAdmin, async(req, res) => {
+            const email =req.params.email
+            const filter ={email: email}
+            const result = await doctorCollection.deleteOne(filter)
+            res.send(result)
+        })
+
+        app.delete('/booking/:id', async (req, res) => {
+            const id =req.params.id
+            const filter ={_id: ObjectId(id)}
+            console.log(filter)
+            const result = await bookingCollection.deleteOne(filter)
+            res.send(result)
+        })
+
     }
     finally{
 
