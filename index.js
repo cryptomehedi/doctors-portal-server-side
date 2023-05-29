@@ -105,10 +105,10 @@ const  emailClient = nodemailer.createTransport(sgTransport(options));
 // }
 
 
-// async function run(){
-//     try {
-        // await client.connect()
-        client.connect()
+async function run(){
+    try {
+        await client.connect()
+        // client.connect()
         const servicesCollection = client.db('doctorsPortal').collection('services')
         const bookingCollection = client.db('doctorsPortal').collection('bookings')
         const usersCollection = client.db('doctorsPortal').collection('users')
@@ -279,13 +279,13 @@ const  emailClient = nodemailer.createTransport(sgTransport(options));
             res.send(result)
         })
 
-//     }
-//     finally{
+    }
+    finally{
 
-//     }
-// }
-// // run().catch(console.dir)
-// run()
+    }
+}
+// run().catch(console.dir)
+run()
 
 
 
