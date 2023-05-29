@@ -18,7 +18,7 @@ app.use(express.json())
 
 
 
-const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.89cjz.mongodb.net/myFirstDatabase?retryWrites=true&w=majority`;
+const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.89cjz.mongodb.net/?retryWrites=true&w=majority`;
 
 const client = new MongoClient(uri, { useNewUrlParser: true, useUnifiedTopology: true, serverApi: ServerApiVersion.v1 });
 
@@ -44,34 +44,34 @@ const options = {
 }
 const  emailClient = nodemailer.createTransport(sgTransport(options));
 
-function sendMail(booking) {
-    const {patientEmail, patientName, date, slot, treatment} = booking
+// function sendMail(booking) {
+//     const {patientEmail, patientName, date, slot, treatment} = booking
 
-    const email = {
-        from: process.env.EMAIL_SENDER ,
-        to: patientEmail,
-        subject: `Your Appointment For ${treatment} Is On ${date} At ${slot} Is Confirmed`,
-        text: `Your Appointment For ${treatment} Is On ${date} At ${slot} Is Confirmed`,
-        html: `
-            <div>
-                <p>Hello ${patientName},</p>
-                <h3>Your Appointment For ${treatment} Is Confirmed</h3>
-                <p>Looking Forward To See You On ${date} At ${slot}</p>
-                <h3>ICT Tower (14th Floor) Plot: E-14/X, Dhaka 1207</h3>
-                <p>Bangladesh</p>
-            </div>
-        `
-    };
+//     const email = {
+//         from: process.env.EMAIL_SENDER ,
+//         to: patientEmail,
+//         subject: `Your Appointment For ${treatment} Is On ${date} At ${slot} Is Confirmed`,
+//         text: `Your Appointment For ${treatment} Is On ${date} At ${slot} Is Confirmed`,
+//         html: `
+//             <div>
+//                 <p>Hello ${patientName},</p>
+//                 <h3>Your Appointment For ${treatment} Is Confirmed</h3>
+//                 <p>Looking Forward To See You On ${date} At ${slot}</p>
+//                 <h3>ICT Tower (14th Floor) Plot: E-14/X, Dhaka 1207</h3>
+//                 <p>Bangladesh</p>
+//             </div>
+//         `
+//     };
 
-    emailClient.sendMail(email, function(err, info){
-        if (err ){
-            console.log(err);
-        }
-        else {
-            console.log('Message sent: ', info);
-        }
-    });
-}
+//     emailClient.sendMail(email, function(err, info){
+//         if (err ){
+//             console.log(err);
+//         }
+//         else {
+//             console.log('Message sent: ', info);
+//         }
+//     });
+// }
 
 
 // function sendPaymentMail(booking) {
@@ -105,9 +105,10 @@ function sendMail(booking) {
 // }
 
 
-async function run(){
-    try {
-        await client.connect()
+// async function run(){
+//     try {
+        // await client.connect()
+        client.connect()
         const servicesCollection = client.db('doctorsPortal').collection('services')
         const bookingCollection = client.db('doctorsPortal').collection('bookings')
         const usersCollection = client.db('doctorsPortal').collection('users')
@@ -278,13 +279,13 @@ async function run(){
             res.send(result)
         })
 
-    }
-    finally{
+//     }
+//     finally{
 
-    }
-}
-// run().catch(console.dir)
-run()
+//     }
+// }
+// // run().catch(console.dir)
+// run()
 
 
 
