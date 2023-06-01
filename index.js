@@ -172,6 +172,19 @@ const  emailClient = nodemailer.createTransport(sgTransport(options));
             // return res.status(403).send({ message: 'Invalid Access' })
         })
 
+        app.put('/user/user/:email',verifyToken,verifyAdmin, async(req, res)=>{
+            const email = req.params.email
+            
+                const filter = {email}
+                const updateDoc = {
+                    $set: {role: 'user'},
+                };
+                const result = await usersCollection.updateOne(filter, updateDoc)
+                return res.send({result})
+            // }
+            // return res.status(403).send({ message: 'Invalid Access' })
+        })
+
         app.put('/user/:email', async(req, res)=>{
             const email = req.params.email
             const user = req.body
@@ -180,6 +193,7 @@ const  emailClient = nodemailer.createTransport(sgTransport(options));
             const updateDoc = {
                 $set: user,
             };
+            
             const result = await usersCollection.updateOne(filter, updateDoc, options)
 
             const token = jwt.sign({email},process.env.ACCESS_TOKEN_SECRET,{ expiresIn: '7d' })
@@ -268,6 +282,13 @@ const  emailClient = nodemailer.createTransport(sgTransport(options));
             const email =req.params.email
             const filter ={email: email}
             const result = await doctorCollection.deleteOne(filter)
+            res.send(result)
+        })
+        
+        app.delete('/user/:email', verifyToken, verifyAdmin, async(req, res) => {
+            const email =req.params.email
+            const filter ={email: email}
+            const result = await usersCollection.deleteOne(filter)
             res.send(result)
         })
 
